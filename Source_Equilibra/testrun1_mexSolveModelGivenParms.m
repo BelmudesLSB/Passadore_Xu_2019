@@ -49,14 +49,14 @@ p.d_yy = 0.3370;
 p.d_b = 0;
 p.d_bb = 0;
 p.d_yb = 0;
-p.maxiters = 12000;
+p.maxiters = 15000;
 p.errtolV = 1e-6;
-p.errtolQ = 1e-6;
-p.NumUpdateRegimes = 4;
-p.UpdateRegimeIter = [200;500;1000];
-p.UpdateWeightOldV = zeros(4,1);
-p.UpdateWeightOldQ = [0;0.5;0.9;0.95];
-p.UpdateWeightOldDefProb = zeros(4,1);
+p.errtolQ = 1e-5;
+p.NumUpdateRegimes = 7;
+p.UpdateRegimeIter = [200;500;1000;2000;4000;6000];
+p.UpdateWeightOldV = zeros(7,1);
+p.UpdateWeightOldQ = [0;0.5;0.9;0.95;0.98;0.98;0.98];
+p.UpdateWeightOldDefProb = [0;0;0;0;0.9;0.95;0.98];
 
 %% read
 
