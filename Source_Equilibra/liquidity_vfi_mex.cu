@@ -35,11 +35,6 @@ __constant__ int CONV_CHK_B_UB_IDX;
 __constant__ REAL_TYPE RH;
 __constant__ REAL_TYPE RL;
 __constant__ REAL_TYPE HOLDING_COST;
-
-// effective transition types
-//P(H->L) = prob_liqshock;
-//P(L->H,ND) = prob_meet_mkt_maker*(1-bargain_power_mkt_maker_ND);
-//P(L->H,D) = prob_meet_mkt_maker*(1-bargain_power_mkt_maker_D);
 __constant__ REAL_TYPE PROB_HL;
 __constant__ REAL_TYPE PROB_LH_ND;
 __constant__ REAL_TYPE PROB_LH_D;
@@ -62,11 +57,8 @@ __constant__ int GRID_B_REENTER_IDX[MAX_GRIDSIZE_B];
 __constant__ REAL_TYPE GRID_RECOVERY_FRAC[MAX_GRIDSIZE_B];
 
 __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYPE& qLupdate, REAL_TYPE& def_prob_update, REAL_TYPE& mdeftresh,
-	int idx_y, int idx_b, REAL_TYPE& VD,
-	REAL_TYPE* d_qH_ND, REAL_TYPE* d_qL_ND, REAL_TYPE* d_qH_D, REAL_TYPE* d_qL_D, REAL_TYPE* d_CVND, REAL_TYPE* d_def_prob)
-{
-
-	// initialize at mub
+	int idx_y, int idx_b, REAL_TYPE& VD, REAL_TYPE* d_qH_ND, REAL_TYPE* d_qL_ND, REAL_TYPE* d_qH_D, REAL_TYPE* d_qL_D, REAL_TYPE* d_CVND, REAL_TYPE* d_def_prob)
+{	// initialize at mub
 	REAL_TYPE Vnow = CUDART_NEG_INF;
 	REAL_TYPE Cnow, Wnow;
 	REAL_TYPE Ccandidate, Wcandidate, Vcandidate;
@@ -107,19 +99,11 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 			}
 		}
 	} // initialize
-
 	if (!isfinite(Vnow))
 	{
-		// // no feasible choice; always default
+		// no feasible choice; always default
 		CENDupdate = VD;
 		def_prob_update = 1.0;
-#ifdef DEBUG_PRINTF
-		if (idx_y == 41 && idx_b == 215)
-		{
-			printf("A. q'=%g\n",
-				(1 - PROB_HL) * d_qH_D[idx_y * GRIDSIZE_B + idx_b] + PROB_HL * d_qL_D[idx_y * GRIDSIZE_B + idx_b]);
-		}
-#endif
 		qHupdate = (1 - PROB_HL) * d_qH_D[idx_y * GRIDSIZE_B + idx_b] + PROB_HL * d_qL_D[idx_y * GRIDSIZE_B + idx_b];
 		qLupdate = max(0.0, (1 - PROB_LH_D) * d_qL_D[idx_y * GRIDSIZE_B + idx_b] + PROB_LH_D * d_qH_D[idx_y * GRIDSIZE_B + idx_b]
 			- HOLDING_COST);
@@ -197,14 +181,6 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 			{
 				// always default in region
 				CENDupdate += VD * (normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD));
-#ifdef DEBUG_PRINTF
-				if (idx_y == 41 && idx_b == 215)
-				{
-					printf("B. prob=%g,q'=%g,mass=%g,P=%g,q1=%g, q2=%g\n", normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD),
-						(1 - PROB_HL) * d_qH_D[idx_y * GRIDSIZE_B + idx_b] + PROB_HL * d_qL_D[idx_y * GRIDSIZE_B + idx_b], GGQ_MMASS,
-						PROB_HL, d_qH_D[idx_y * GRIDSIZE_B + idx_b], d_qL_D[idx_y * GRIDSIZE_B + idx_b]);
-				}
-#endif
 				qHupdate += (normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD)) *
 					((1 - PROB_HL) * d_qH_D[idx_y * GRIDSIZE_B + idx_b] + PROB_HL * d_qL_D[idx_y * GRIDSIZE_B + idx_b]);
 				qLupdate += (normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD)) *
@@ -218,21 +194,9 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 				{
 					CENDupdate += gauss_legendre_CENDupdate(mnext, mnow, Cnow, Wnow);
 					qHupdate += (normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(mnext - GGQ_MMEAN, GGQ_MSTD)) *
-						(DEBT_M + (1 - DEBT_M) * DEBT_Z
-							+ (1 - DEBT_M) * ((1 - PROB_HL) * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_HL * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev])
-							);
-#ifdef DEBUG_PRINTF
-					if (idx_y == 41 && idx_b == 215)
-					{
-						printf("C. prob=%g,q'=%g,mass=%g,P=%g,q1=%g, q2=%g\n", normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(mnext - GGQ_MMEAN, GGQ_MSTD),
-							(1 - PROB_HL) * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_HL * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev], GGQ_MMASS,
-							PROB_HL, d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev], d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev]);
-					}
-#endif
-					qLupdate += (normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(mnext - GGQ_MMEAN, GGQ_MSTD)) *
-						(DEBT_M + (1 - DEBT_M) * DEBT_Z
-							+ (1 - DEBT_M) * ((1 - PROB_LH_ND) * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_LH_ND * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev])
-							);
+						(DEBT_M + (1 - DEBT_M) * DEBT_Z	+ (1 - DEBT_M) * ((1 - PROB_HL) * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_HL * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev]));
+					qLupdate += (normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(mnext - GGQ_MMEAN, GGQ_MSTD)) *	(DEBT_M + (1 - DEBT_M) * DEBT_Z
+							+ (1 - DEBT_M) * ((1 - PROB_LH_ND) * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_LH_ND * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev]));
 					// update and continue algorithm
 					ichoice_prev = ichoice;
 					mnow = mnext;
@@ -249,14 +213,6 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 							(DEBT_M + (1 - DEBT_M) * DEBT_Z
 								+ (1 - DEBT_M) * ((1 - PROB_HL) * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_HL * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev])
 								);
-#ifdef DEBUG_PRINTF
-						if (idx_y == 41 && idx_b == 215)
-						{
-							printf("D. prob=%g,q'=%g,mass=%g,P=%g,q1=%g, q2=%g\n", normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(M1 - GGQ_MMEAN, GGQ_MSTD),
-								(1 - PROB_HL) * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_HL * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev], GGQ_MMASS,
-								PROB_HL, d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev], d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev]);
-						}
-#endif
 						qLupdate += (normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(M1 - GGQ_MMEAN, GGQ_MSTD)) *
 							(DEBT_M + (1 - DEBT_M) * DEBT_Z
 								+ (1 - DEBT_M) * ((1 - PROB_LH_ND) * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_LH_ND * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev])
@@ -306,14 +262,6 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 							CENDupdate += VD * (normcdf(M1 - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD));
 							qHupdate += (normcdf(M1 - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD)) *
 								((1 - PROB_HL) * d_qH_D[idx_y * GRIDSIZE_B + idx_b] + PROB_HL * d_qL_D[idx_y * GRIDSIZE_B + idx_b]);
-#ifdef DEBUG_PRINTF
-							if (idx_y == 41 && idx_b == 215)
-							{
-								printf("E. prob=%g,q'=%g,P=%g,q1=%g, q2=%g\n", normcdf(M1 - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD),
-									(1 - PROB_HL) * d_qH_D[idx_y * GRIDSIZE_B + idx_b] + PROB_HL * d_qL_D[idx_y * GRIDSIZE_B + idx_b],
-									PROB_HL, d_qH_D[idx_y * GRIDSIZE_B + idx_b], d_qL_D[idx_y * GRIDSIZE_B + idx_b]);
-							}
-#endif
 							qLupdate += (normcdf(M1 - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD)) *
 								((1 - PROB_LH_D) * d_qL_D[idx_y * GRIDSIZE_B + idx_b] + PROB_LH_D * d_qH_D[idx_y * GRIDSIZE_B + idx_b]);
 							mdeftresh = M1;
@@ -327,14 +275,6 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 							(DEBT_M + (1 - DEBT_M) * DEBT_Z
 								+ (1 - DEBT_M) * ((1 - PROB_HL) * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_HL * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev])
 								);
-#ifdef DEBUG_PRINTF
-						if (idx_y == 41 && idx_b == 215)
-						{
-							printf("F. prob=%g,q'=%g,mass=%g,P=%g,q1=%g, q2=%g\n", normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD),
-								(1 - PROB_HL) * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_HL * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev], GGQ_MMASS,
-								PROB_HL, d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev], d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev]);
-						}
-#endif
 						qLupdate += (normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD)) *
 							(DEBT_M + (1 - DEBT_M) * DEBT_Z
 								+ (1 - DEBT_M) * ((1 - PROB_LH_ND) * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_LH_ND * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev])
@@ -353,14 +293,6 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 					((1 - PROB_HL) * d_qH_D[idx_y * GRIDSIZE_B + idx_b] + PROB_HL * d_qL_D[idx_y * GRIDSIZE_B + idx_b])
 					+ (normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(Vcandidate - GGQ_MMEAN, GGQ_MSTD)) *
 					(DEBT_M + (1 - DEBT_M) * DEBT_Z + (1 - DEBT_M) * ((1 - PROB_HL) * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_HL * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev]));
-#ifdef DEBUG_PRINTF
-				if (idx_y == 41 && idx_b == 215)
-				{
-					printf("G. prob=%g,q'=%g,mass=%g,q2=%g\n", normcdf(Vcandidate - GGQ_MMEAN, GGQ_MSTD) - normcdf(mnext - GGQ_MMEAN, GGQ_MSTD),
-						(1 - PROB_HL) * d_qH_D[idx_y * GRIDSIZE_B + idx_b] + PROB_HL * d_qL_D[idx_y * GRIDSIZE_B + idx_b],
-						(1 - PROB_HL) * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_HL * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev]);
-				}
-#endif
 				qLupdate += (normcdf(Vcandidate - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD)) *
 					((1 - PROB_LH_D) * d_qL_D[idx_y * GRIDSIZE_B + idx_b] + PROB_LH_D * d_qH_D[idx_y * GRIDSIZE_B + idx_b])
 					+ (normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(Vcandidate - GGQ_MMEAN, GGQ_MSTD)) *
@@ -404,13 +336,7 @@ __device__ REAL_TYPE bisect_zero(REAL_TYPE a, REAL_TYPE b, REAL_TYPE c1, REAL_TY
 			break;
 		}
 	}
-	/*
-	if (i >= MAXITERS_BISECT)
-	{
-		printf("WARNING: bisect iterations reached MAXITERS_BISECT.");
-		// error: calling a __host__ function("mexPrintf") from a __device__ function("bisect_zero") is not allowed
-	}
-	*/
+
 	return 0.5 * (xlb + xub);
 }
 
@@ -421,8 +347,7 @@ __device__ REAL_TYPE m_root_fun(REAL_TYPE m, REAL_TYPE U1, REAL_TYPE U2, REAL_TY
 
 __device__ REAL_TYPE CENDupdatefun(REAL_TYPE m, REAL_TYPE U, REAL_TYPE W)
 {
-	return normpdf(m - GGQ_MMEAN, GGQ_MSTD)
-		* (U_SCALING * POWERFUN(U + m, ONE_MINUS_RRA) + W);
+	return normpdf(m - GGQ_MMEAN, GGQ_MSTD)	* (U_SCALING * POWERFUN(U + m, ONE_MINUS_RRA) + W);
 }
 
 __device__ REAL_TYPE gauss_legendre_CENDupdate(REAL_TYPE m1, REAL_TYPE m2, REAL_TYPE U, REAL_TYPE W)
@@ -511,7 +436,6 @@ __global__ void vfi_iterate_policy(int *d_idx_bchoice, REAL_TYPE *d_qH_ND, REAL_
 	}
 }
 
-
 __global__ void vfi_iterate(REAL_TYPE *d_VD, REAL_TYPE *d_VNDupdate, REAL_TYPE *d_qH_ND_update, REAL_TYPE *d_qL_ND_update, 
 	REAL_TYPE *d_defprob_update, REAL_TYPE *d_defthresh,
 	REAL_TYPE *d_CVD, REAL_TYPE *d_qH_ND, REAL_TYPE *d_qL_ND, 
@@ -519,19 +443,18 @@ __global__ void vfi_iterate(REAL_TYPE *d_VD, REAL_TYPE *d_VNDupdate, REAL_TYPE *
 // we don't store the debt policy here
 {
 	int i = blockIdx.x*blockDim.x + threadIdx.x;
-	volatile int idx_b = i % GRIDSIZE_B;
-	volatile int idx_y = (i - idx_b) / GRIDSIZE_B;
+
+	volatile int idx_b = i % GRIDSIZE_B; // ! get index for bond.
+	volatile int idx_y = (i - idx_b) / GRIDSIZE_B; // ! gets index for output.
+
 	if (idx_y < GRIDSIZE_Y && idx_b < GRIDSIZE_B)
 	{
 		// update D problem
 		REAL_TYPE VD = d_uD_yb[idx_y*GRIDSIZE_B + idx_b] + BETA*d_CVD[idx_y*GRIDSIZE_B + idx_b];
-
 		REAL_TYPE CENDupdate, qHupdate, qLupdate, defprobupdate, defthresh;
 
 		// partition and apply ggq algorithm on each sub-region.
-		ggq_topdown(CENDupdate, qHupdate, qLupdate, defprobupdate, defthresh,
-				idx_y, idx_b, VD,
-				d_qH_ND, d_qL_ND, d_qH_D, d_qL_D, d_CVND, d_defprob);
+		ggq_topdown(CENDupdate, qHupdate, qLupdate, defprobupdate, defthresh, idx_y, idx_b, VD,	d_qH_ND, d_qL_ND, d_qH_D, d_qL_D, d_CVND, d_defprob);
 
 		d_VNDupdate[idx_y*GRIDSIZE_B + idx_b] = CENDupdate;
 		d_qH_ND_update[idx_y*GRIDSIZE_B + idx_b] = qHupdate;
@@ -687,43 +610,40 @@ void vfi(parms_bsl_mod &p, REAL_TYPE wOldV, REAL_TYPE wOldQ, REAL_TYPE wOldDefPr
 	All vectors should have dimension GRIDSIZE_Y*GRIDSIZE_B
 	// the device has plenty of memory
 	*/
-{
+{	// ! Same number of blocks and threads per block in all kernels.
 
 	int NUMTHREADS1 = 128;
 	int NUMBLOCKS1 = (int) ceil((double)(p.gridsize_tfp*p.gridsize_b) / (double)NUMTHREADS1);
 
-	// temp1 = VD, temp2 = VNDupdate, temp3 = qHNDupdate, temp4 = qLNDupdate
-	vfi_iterate <<< NUMBLOCKS1, NUMTHREADS1 >>> (d_VD, d_VNDupdate, d_qH_ND_update, d_qL_ND_update, d_defprob_update, d_defthresh,
-		d_CVD, d_qH_ND, d_qL_ND,d_qH_D, d_qL_D, d_CVND, d_uD_yb, d_defprob); // inputs
+	// ! This runs the GGG Algorithm:
+	vfi_iterate <<< NUMBLOCKS1, NUMTHREADS1 >>> (d_VD, d_VNDupdate, d_qH_ND_update, d_qL_ND_update, d_defprob_update, d_defthresh, d_CVD, d_qH_ND, d_qL_ND,d_qH_D, d_qL_D, d_CVND, d_uD_yb, d_defprob); // inputs
 	cudaDeviceSynchronize();
 
 	// first round of updating
 	int NUMTHREADS2 = 128;
 	int NUMBLOCKS2 = (int)ceil((double)(p.gridsize_tfp*p.gridsize_b) / (double)NUMTHREADS2);
 
-	vfi_update1 <<< NUMBLOCKS2, NUMTHREADS2 >>> (d_prob_y, d_EVD, d_CVNDnew, d_qH_NDnew, d_qL_NDnew, d_EqH_D, d_EqL_D, d_defprob_new,
-		d_VD, d_VNDupdate, d_qH_ND_update, d_qL_ND_update, d_defprob_update, d_qH_D, d_qL_D);
+	// ! UPDATE Prices??
+	vfi_update1 <<< NUMBLOCKS2, NUMTHREADS2 >>> (d_prob_y, d_EVD, d_CVNDnew, d_qH_NDnew, d_qL_NDnew, d_EqH_D, d_EqL_D, d_defprob_new, d_VD, d_VNDupdate, d_qH_ND_update, d_qL_ND_update, d_defprob_update, d_qH_D, d_qL_D);
 	cudaDeviceSynchronize();
 
 	// interpolate
 
-	// temp1 = ceDi, temp2 = qH_Di, temp3 = qL_Di, temp4 = ceCi, temp11 = qH_NDi, temp12 = qL_NDi
-	vfi_interpolate <<< NUMBLOCKS2, NUMTHREADS2 >>> (d_CVNDi, d_qH_NDi, d_qL_NDi,
-		d_CVNDnew, d_qH_NDnew, d_qL_NDnew);
+	// ! Interpolation??
+	vfi_interpolate <<< NUMBLOCKS2, NUMTHREADS2 >>> (d_CVNDi, d_qH_NDi, d_qL_NDi, d_CVNDnew, d_qH_NDnew, d_qL_NDnew);
 	cudaDeviceSynchronize();
 
 	// second round of updating
 
-	// temp5 = CVD***, temp9 = qH_D***, temp10 = qL_D***
-	vfi_update2 <<< NUMBLOCKS2, NUMTHREADS2 >>> (d_CVDnew, d_EVD, d_CVNDi,
-		d_qH_Dnew, d_qL_Dnew, d_EqH_D, d_EqL_D,
-		d_qH_NDi, d_qL_NDi);
+	// ! Renter probabilities ??
+	vfi_update2 <<< NUMBLOCKS2, NUMTHREADS2 >>> (d_CVDnew, d_EVD, d_CVNDi, d_qH_Dnew, d_qL_Dnew, d_EqH_D, d_EqL_D, d_qH_NDi, d_qL_NDi);
 	cudaDeviceSynchronize();
 
 	// update and compute errors
 	int NUMTHREADS3 = 128;
 	int NUMBLOCKS3 = (int)ceil((double)(p.gridsize_tfp*p.gridsize_b) / (double)NUMTHREADS3);
 
+	// ! Compute errors:
 	update_compute_errors <<< NUMBLOCKS3, NUMTHREADS3 >>> (d_CVD, d_CVDnew, wOldV); // CVD
 	update_compute_errors <<< NUMBLOCKS3, NUMTHREADS3 >>> (d_CVND, d_CVNDnew, wOldV); // CVND
 	update_compute_errors <<< NUMBLOCKS3, NUMTHREADS3 >>> (d_defprob, d_defprob_new, wOldDefProb); // def prob
@@ -747,11 +667,6 @@ void vfi(parms_bsl_mod &p, REAL_TYPE wOldV, REAL_TYPE wOldQ, REAL_TYPE wOldDefPr
 	thrust::device_vector<REAL_TYPE>::iterator tempiter3 = thrust::max_element(tempptr3, tempptr3 + p.gridsize_tfp*p.gridsize_b);
 	err_qH_ND = *tempiter3;
 
-	// int idx_maxerr_qH_ND = &tempiter3[0] - &tempptr3[0];
-	// int idx_maxerr_qH_ND_b = idx_maxerr_qH_ND % p.gridsize_b;
-	// int idx_maxerr_qH_ND_y = (idx_maxerr_qH_ND - idx_maxerr_qH_ND_b)/p.gridsize_b;
-	// std::cout<< "maxerr(qH_ND) occurred at idx_y=" << idx_maxerr_qH_ND_y << ", idx_b=" << idx_maxerr_qH_ND_b << std::endl;
-
 	thrust::device_ptr<REAL_TYPE> tempptr4 = thrust::device_pointer_cast(d_qL_NDnew);
 	thrust::device_vector<REAL_TYPE>::iterator tempiter4 = thrust::max_element(tempptr4, tempptr4 + p.gridsize_tfp*p.gridsize_b);
 	err_qL_ND = *tempiter4;
@@ -769,7 +684,6 @@ void vfi(parms_bsl_mod &p, REAL_TYPE wOldV, REAL_TYPE wOldQ, REAL_TYPE wOldDefPr
 	err_defprob = *tempiter7;
 
 	cudaDeviceSynchronize();
-
 }
 
 __global__ void initValueFuns(REAL_TYPE *d_CVD, REAL_TYPE *d_CVND, REAL_TYPE *d_qH_ND, REAL_TYPE *d_qL_ND, REAL_TYPE *d_qH_D, REAL_TYPE *d_qL_D,
@@ -931,9 +845,9 @@ int SolveModel(REAL_TYPE* h_CVD, REAL_TYPE* h_CVND, REAL_TYPE* h_qH_ND, REAL_TYP
 
 	cudaSetDevice(useDevice);
 
-	p.initDeviceConstants();
+	p.initDeviceConstants(); // ! Load constants to the GPU.
 
-	// allocate device memory
+	// allocate device memory:
 	REAL_TYPE *d_CVD, *d_CVND, *d_qH_ND, *d_qL_ND, *d_qH_D, *d_qL_D, *d_defprob;
 	REAL_TYPE *d_VD, *d_VNDupdate, *d_qH_ND_update, *d_qL_ND_update, *d_EVD, *d_CVNDnew,
 		*d_qH_NDnew, *d_qL_NDnew, *d_EqH_D, *d_EqL_D,
@@ -975,8 +889,7 @@ int SolveModel(REAL_TYPE* h_CVD, REAL_TYPE* h_CVND, REAL_TYPE* h_qH_ND, REAL_TYP
 	cudaMalloc((void**)&d_idx_bchoice, p.gridsize_tfp * p.gridsize_b * sizeof(int));
 
 	cudaDeviceSynchronize();
-	initValueFuns <<< (int)ceil((double)(p.gridsize_tfp*p.gridsize_b)/(double)128) , 128 >>> (d_CVD, d_CVND, d_qH_ND, d_qL_ND, d_qH_D, 
-		d_qL_D, d_defprob);
+	initValueFuns <<< (int)ceil((double)(p.gridsize_tfp*p.gridsize_b)/(double)128) , 128 >>> (d_CVD, d_CVND, d_qH_ND, d_qL_ND, d_qH_D, d_qL_D, d_defprob);
 	cudaDeviceSynchronize();
 
 	size_t free_cuda_mem, total_cuda_mem;
@@ -989,6 +902,7 @@ int SolveModel(REAL_TYPE* h_CVD, REAL_TYPE* h_CVND, REAL_TYPE* h_qH_ND, REAL_TYP
 
 
 	cudaEvent_t start, stop;
+
 	float milliseconds_taken;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
@@ -1014,14 +928,10 @@ int SolveModel(REAL_TYPE* h_CVD, REAL_TYPE* h_CVND, REAL_TYPE* h_qH_ND, REAL_TYP
 		wOldV = p.UpdateWeightOldV[Updatek];
 		wOldQ = p.UpdateWeightOldQ[Updatek];
 		wOldDefProb = p.UpdateWeightOldDefProb[Updatek];
-		vfi(p, wOldV, wOldQ, wOldDefProb, d_prob_y, d_uD_yb, 
-			err_CVD, err_CVND, err_qH_ND, err_qL_ND, err_qH_D, err_qL_D, err_defprob,
-			d_CVD, d_CVND, d_qH_ND, d_qL_ND, d_qH_D, d_qL_D, d_defprob,
-			d_VD, d_VNDupdate, d_qH_ND_update, d_qL_ND_update, d_defprob_update, d_defthresh,
-			d_EVD, d_CVNDnew,
-			d_qH_NDnew, d_qL_NDnew, d_EqH_D, d_EqL_D, d_defprob_new,
-			d_CVNDi, d_qH_NDi, d_qL_NDi,
-			d_CVDnew, d_qH_Dnew, d_qL_Dnew);
+
+		vfi(p, wOldV, wOldQ, wOldDefProb, d_prob_y, d_uD_yb, err_CVD, err_CVND, err_qH_ND, err_qL_ND, err_qH_D, err_qL_D, err_defprob,
+			d_CVD, d_CVND, d_qH_ND, d_qL_ND, d_qH_D, d_qL_D, d_defprob,	d_VD, d_VNDupdate, d_qH_ND_update, d_qL_ND_update, d_defprob_update, d_defthresh,
+			d_EVD, d_CVNDnew, d_qH_NDnew, d_qL_NDnew, d_EqH_D, d_EqL_D, d_defprob_new, d_CVNDi, d_qH_NDi, d_qL_NDi,	d_CVDnew, d_qH_Dnew, d_qL_Dnew);
 
 		err_q = err_qH_ND;
 		if (err_qL_ND > err_q)
@@ -1054,6 +964,7 @@ int SolveModel(REAL_TYPE* h_CVD, REAL_TYPE* h_CVND, REAL_TYPE* h_qH_ND, REAL_TYP
 	} while (iter <= p.maxiters && !bConverged);
 
 	// obtain policies at m = mmean
+
 	cudaDeviceSynchronize();
 	int NUMTHREADS1 = 128;
 	int NUMBLOCKS1 = (int)ceil((double)(p.gridsize_tfp * p.gridsize_b) / (double)NUMTHREADS1);

@@ -11,7 +11,6 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[])
 // see https://www.mathworks.com/matlabcentral/answers/94226-why-do-i-receive-the-error-mex-file-entry-point-is-missing (for mex files, not mexcuda)
 // matlab syntax: output = mexSolveModelGivenParms(parm_struc, useDevice, DisplayInterval)
 
-
 	if (nrhs != 3)
 	{
 		mexErrMsgIdAndTxt("mexSolveModelGivenParms:nrhs", "Correct format: output = mexSolveModelGivenParms(parm_struc, useDevice, DisplayInterval)\n");
@@ -37,7 +36,6 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[])
 	else {
 		useDevice = (int)mxGetScalar(prhs[1]);
 	}
-
 	if (!mxIsDouble(prhs[2])) {
 		mexErrMsgIdAndTxt("mexSolveModelGivenParms:InputNotDouble", "Input[2] must be a number.\n");
 	}
@@ -52,14 +50,8 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[])
 		}
 	}
 
-	if (p.readparms(prhs[0]) == EXIT_SUCCESS)
+	if (p.readparms(prhs[0]) == EXIT_SUCCESS) // ! Note that p is a class, and readparms is the method associated with the class.
 	{
-
-		// mexPrintf("Successfully read parameters.\n");
-		// p.matlab_display_cpu_parms();
-
-		// run vfi
-
 		REAL_TYPE *h_CVD, *h_CVND, *h_qH_ND, *h_qL_ND, *h_qH_D, *h_qL_D, *h_defprob, *h_defthresh;
 		int* h_idx_bchoice, iter;
 		REAL_TYPE err_qH_ND, err_qL_ND, err_qH_D, err_qL_D, err_defprob, err_CVD, err_CVND;
@@ -74,15 +66,17 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[])
 		h_qL_D = new REAL_TYPE[p.gridsize_tfp * p.gridsize_b];
 		h_idx_bchoice = new int[p.gridsize_tfp * p.gridsize_b];
 
-		if (SolveModel(h_CVD, h_CVND, h_qH_ND, h_qL_ND, h_qH_D, h_qL_D, h_defprob, h_defthresh, h_idx_bchoice,
-			iter, err_qH_ND, err_qL_ND, err_qH_D, err_qL_D, err_defprob, err_CVD, err_CVND,
-			p, useDevice, bDisplayProgress, DisplayInterval) == EXIT_FAILURE) {
+		// ! Only host parameters get inputed here:
+
+		if (SolveModel(h_CVD, h_CVND, h_qH_ND, h_qL_ND, h_qH_D, h_qL_D, h_defprob, h_defthresh, h_idx_bchoice, iter, err_qH_ND, err_qL_ND, err_qH_D, err_qL_D, err_defprob, err_CVD, err_CVND, p, useDevice, bDisplayProgress, DisplayInterval) == EXIT_FAILURE){
 			mexErrMsgIdAndTxt("mexSolveModelGivenParms:SolveModel", "Error in SolveModel.\n");
 		}
 
+
+		// ! Export to MATLAB:
+		
 		// output to matlab
-		const char* fnames[20] = {"iter", "err_qH_ND", "err_qL_ND", "err_qH_D", "err_qL_D", "err_defprob", "err_CVD", "err_CVND",
-			"CVD","CVND","qH_ND","qL_ND","qH_D","qL_D","defprob","defthresh","idx_bchoice","prob_y","grid_y_nd","grid_y_d"};
+		const char* fnames[20] = {"iter", "err_qH_ND", "err_qL_ND", "err_qH_D", "err_qL_D", "err_defprob", "err_CVD", "err_CVND","CVD","CVND","qH_ND","qL_ND","qH_D","qL_D","defprob","defthresh","idx_bchoice","prob_y","grid_y_nd","grid_y_d"};
 
 		plhs[0] = mxCreateStructMatrix(1, 1, 20, fnames);
 

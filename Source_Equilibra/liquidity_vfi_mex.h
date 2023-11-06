@@ -5,15 +5,12 @@
 #include "liquidity_mex_defs.h"
 
 __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYPE& qLupdate, REAL_TYPE& def_prob_update, REAL_TYPE& mdeftresh,
-	int idx_y, int idx_b, REAL_TYPE& VD,
-	REAL_TYPE* d_qH_ND, REAL_TYPE* d_qL_ND, REAL_TYPE* d_qH_D, REAL_TYPE* d_qL_D, REAL_TYPE* d_CVND, REAL_TYPE* d_def_prob);
+	int idx_y, int idx_b, REAL_TYPE& VD, REAL_TYPE* d_qH_ND, REAL_TYPE* d_qL_ND, REAL_TYPE* d_qH_D, REAL_TYPE* d_qL_D, REAL_TYPE* d_CVND, REAL_TYPE* d_def_prob);
+
 __device__ REAL_TYPE bisect_zero(REAL_TYPE a, REAL_TYPE b, REAL_TYPE c1, REAL_TYPE c2, REAL_TYPE W1_minus_W2);
 __device__ REAL_TYPE m_root_fun(REAL_TYPE m, REAL_TYPE U1, REAL_TYPE U2, REAL_TYPE W1_minus_W2);
 __device__ REAL_TYPE CENDupdatefun(REAL_TYPE m, REAL_TYPE U, REAL_TYPE W);
 __device__ REAL_TYPE gauss_legendre_CENDupdate(REAL_TYPE m1, REAL_TYPE m2, REAL_TYPE U, REAL_TYPE W);
-
-
-// __global__ void printDeviceElement(REAL_TYPE *x, int idx);
 
 __global__ void vfi_iterate_policy(int* d_idx_bchoice, REAL_TYPE* d_qH_ND, REAL_TYPE* d_def_prob, REAL_TYPE* d_CVND);
 
@@ -35,8 +32,6 @@ __global__ void vfi_update2(REAL_TYPE *d_CVD, REAL_TYPE *d_CVDhaircut, REAL_TYPE
 	REAL_TYPE *d_qH_NDhaircut, REAL_TYPE *d_qL_NDhaircut);
 
 __global__ void update_compute_errors(REAL_TYPE *d_x, REAL_TYPE *d_y, REAL_TYPE wx);
-
-// __global__ void printDeviceConstants();
 
 void vfi(parms_bsl_mod &p, REAL_TYPE wOldV, REAL_TYPE wOldQ, REAL_TYPE wOldDefProb, REAL_TYPE *d_prob_y, REAL_TYPE *d_uD_yb, 
 	REAL_TYPE &err_CVD, REAL_TYPE &err_CVND, REAL_TYPE &err_qH_ND, REAL_TYPE &err_qL_ND, REAL_TYPE &err_qH_D, REAL_TYPE &err_qL_D, REAL_TYPE &err_defprob,

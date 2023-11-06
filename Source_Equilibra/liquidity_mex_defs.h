@@ -17,9 +17,6 @@ REAL_TYPE CalcAutarkyOutput(REAL_TYPE yND, REAL_TYPE bdef, REAL_TYPE d_y, REAL_T
 int ReadScalarFromMatlabStruc(double& ReadVal, const mxArray* mxPtr, const char* fieldname);
 int ReadVectorFromMatlabStruc(double* ReadVal, const mxArray* mxPtr, int Nread, const char* fieldname);
 
-
-// __global__ void printDeviceConstants();
-
 class parms_bsl_mod
 {
 public:
