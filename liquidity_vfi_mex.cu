@@ -429,20 +429,7 @@ __device__ REAL_TYPE gauss_legendre_CENDupdate(REAL_TYPE m1, REAL_TYPE m2, REAL_
 {
 	REAL_TYPE alpha = 0.5 * (m1 + m2);
 	REAL_TYPE beta = 0.5 * (m2 - m1);
-
-	// return beta*(
-	// 	0.0666713443086881375935688*CENDupdatefun(alpha + beta*-0.9739065285171717200779640, U, W)
-	// 	+ 0.1494513491505805931457763*CENDupdatefun(alpha + beta*-0.8650633666889845107320967, U, W)
-	// 	+ 0.2190863625159820439955349*CENDupdatefun(alpha + beta*-0.6794095682990244062343274, U, W)
-	// 	+ 0.2692667193099963550912269*CENDupdatefun(alpha + beta*-0.4333953941292471907992659, U, W)
-	// 	+ 0.2955242247147528701738930*CENDupdatefun(alpha + beta*-0.1488743389816312108848260, U, W)
-	// 	+ 0.2955242247147528701738930*CENDupdatefun(alpha + beta*0.1488743389816312108848260, U, W)
-	// 	+ 0.2692667193099963550912269*CENDupdatefun(alpha + beta*0.4333953941292471907992659, U, W)
-	// 	+ 0.2190863625159820439955349*CENDupdatefun(alpha + beta*0.6794095682990244062343274, U, W)
-	// 	+ 0.1494513491505805931457763*CENDupdatefun(alpha + beta*0.8650633666889845107320967, U, W)
-	// 	+ 0.0666713443086881375935688*CENDupdatefun(alpha + beta*0.9739065285171717200779640, U, W)
-	// );
-
+	
 	// 21 points
 	return 	beta * (0.1460811336496904 * CENDupdatefun(alpha + beta * 0.0000000000000000, U, W)
 		+ 0.1445244039899700 * CENDupdatefun(alpha + beta * -0.1455618541608951, U, W)
@@ -467,17 +454,6 @@ __device__ REAL_TYPE gauss_legendre_CENDupdate(REAL_TYPE m1, REAL_TYPE m2, REAL_
 		+ 0.0160172282577743 * CENDupdatefun(alpha + beta * 0.9937521706203895, U, W));
 
 }
-
-/*
-__global__ void printDeviceElement(REAL_TYPE *x, int idx)
-{
-	int i = blockIdx.x*blockDim.x + threadIdx.x;
-	if (i == 0)
-	{
-		printf("printDeviceElement:: x[%d]=%g.\n", idx, x[idx]);
-	}
-}
-*/
 
 /*
 FORMATS:
@@ -924,56 +900,6 @@ void parms_bsl_mod::initDeviceConstants()
 
 }
 
-/*
-// NOTE: printf doesn't work in mex.
-__global__ void printDeviceConstants()
-{
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	if (i == 0)
-	{
-		printf("Printing device constants.\n");;
-		printf("RRA = %g.\n", RRA);
-		printf("BETA = %g.\n", BETA);
-		printf("ONE_MINUS_RRA = %g.\n", ONE_MINUS_RRA);
-		printf("U_SCALING = %g.\n", U_SCALING);
-		printf("C_LB = %g.\n", C_LB);
-		printf("GGQ_MLB = %g.\n", GGQ_MLB);
-		printf("GGQ_MUB = %g.\n", GGQ_MUB);
-		printf("GGQ_MMEAN = %g.\n", GGQ_MMEAN);
-		printf("GGQ_MSTD = %g.\n", GGQ_MSTD);
-		printf("GGQ_MMASS = %g.\n", GGQ_MMASS);
-		printf("GGQ_MDEF = %g.\n", GGQ_MDEF);
-		printf("ERRTOL_BISECT = %g.\n", ERRTOL_BISECT);
-		printf("MAXITERS_BISECT = %d.\n", MAXITERS_BISECT);
-		printf("RH = %g.\n", RH);
-		printf("RL = %g.\n", RL);
-		printf("HOLDING_COST = %g.\n", HOLDING_COST);
-		printf("PROB_HL = %g.\n", PROB_HL);
-		printf("PROB_LH_ND = %g.\n", PROB_LH_ND);
-		printf("PROB_LH_D = %g.\n", PROB_LH_D);
-		printf("REENTERPROB = %g.\n", REENTERPROB);
-		printf("DEBT_Z = %g.\n", DEBT_Z);
-		printf("DEBT_M = %g.\n", DEBT_M);
-		printf("MAX_DEF_PROB = %g.\n", MAX_DEF_PROB);
-		printf("GRIDSIZE_Y = %d.\n", GRIDSIZE_Y);
-		printf("GRIDSIZE_B = %d.\n", GRIDSIZE_B);
-		// for (i = 0; i < GRIDSIZE_Y; i++)
-		// {
-		// 	printf("GRID_Y_ND[%d]=%g.\n",i, GRID_Y_ND[i]);
-		// }
-		// for (i = 0; i < GRIDSIZE_B; i++)
-		// {
-		// 	printf("GRID_B[%d]=%g.\n",i, GRID_B[i]);
-		// }
-		// for (i = 0; i < GRIDSIZE_B; i++)
-		// {
-		// 	printf("i=%d. writedown interp: pt1=%d, wt1=%g.\n", i, 
-		// 		INTERP1_WRITEDOWN_REENTER_PT1[i], INTERP1_WRITEDOWN_REENTER_WT1[i]);
-		// }
-	}
-}
-*/
-
 int SolveModel(REAL_TYPE* h_CVD, REAL_TYPE* h_CVND, REAL_TYPE* h_qH_ND, REAL_TYPE* h_qL_ND, REAL_TYPE* h_qH_D, REAL_TYPE*h_qL_D, 
 	REAL_TYPE* h_defprob, REAL_TYPE* h_defthresh, int *h_idx_bchoice,  
 	int &iter, REAL_TYPE &err_qH_ND, REAL_TYPE &err_qL_ND, REAL_TYPE &err_qH_D, REAL_TYPE &err_qL_D, REAL_TYPE &err_defprob, 
@@ -1143,19 +1069,6 @@ int SolveModel(REAL_TYPE* h_CVD, REAL_TYPE* h_CVND, REAL_TYPE* h_qH_ND, REAL_TYP
 		mexPrintf("iter %d, err(defprob)=%g, err(qs)=%g, err(CVD)=%g, err(CVND)=%g. %g seconds elapsed.\n", iter, err_defprob, err_q, err_CVD, err_CVND, milliseconds_taken / 1000.0);
 	}
 
-	// save outputs
-	/*
-	* // memory should already be allocated
-	h_defprob = new REAL_TYPE[p.gridsize_tfp*p.gridsize_b];
-	h_defthresh = new REAL_TYPE[p.gridsize_tfp*p.gridsize_b];
-	h_CVD = new REAL_TYPE[p.gridsize_tfp*p.gridsize_b];
-	h_CVND = new REAL_TYPE[p.gridsize_tfp*p.gridsize_b];
-	h_qH_ND = new REAL_TYPE[p.gridsize_tfp*p.gridsize_b];
-	h_qL_ND = new REAL_TYPE[p.gridsize_tfp*p.gridsize_b];
-	h_qH_D = new REAL_TYPE[p.gridsize_tfp*p.gridsize_b];
-	h_qL_D = new REAL_TYPE[p.gridsize_tfp*p.gridsize_b];
-	h_idx_bchoice = new int[p.gridsize_tfp * p.gridsize_b];
-	*/
 	cudaMemcpy(h_defprob,d_defprob, p.gridsize_tfp*p.gridsize_b*sizeof(REAL_TYPE), cudaMemcpyDeviceToHost);
 	cudaMemcpy(h_CVD,d_CVD, p.gridsize_tfp*p.gridsize_b*sizeof(REAL_TYPE), cudaMemcpyDeviceToHost);
 	cudaMemcpy(h_CVND, d_CVND, p.gridsize_tfp*p.gridsize_b*sizeof(REAL_TYPE), cudaMemcpyDeviceToHost);

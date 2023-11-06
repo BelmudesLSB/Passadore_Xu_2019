@@ -6,62 +6,6 @@
 #include "normaldist_mex.h"
 #include "mex.h"
 
-// #define DEBUG_IDENTITY_PROB
-
-/*
-// preferences
-__constant__ REAL_TYPE RRA;
-__constant__ REAL_TYPE BETA;
-__constant__ REAL_TYPE ONE_MINUS_RRA; // 1-RRA
-__constant__ REAL_TYPE U_SCALING; // 1/(1-RRA)
-
-// numerical parameters
-__constant__ REAL_TYPE C_LB;
-__constant__ REAL_TYPE GGQ_MLB;
-__constant__ REAL_TYPE GGQ_MUB;
-__constant__ REAL_TYPE GGQ_MMEAN;
-__constant__ REAL_TYPE GGQ_MSTD;
-__constant__ REAL_TYPE GGQ_MMASS;
-__constant__ REAL_TYPE GGQ_MDEF;
-__constant__ REAL_TYPE ERRTOL_BISECT;
-__constant__ REAL_TYPE MAX_DEF_PROB;
-__constant__ int MAXITERS_BISECT;
-__constant__ int CONV_CHK_TFP_LB_IDX;
-__constant__ int CONV_CHK_TFP_UB_IDX;
-
-// liquidity discounts
-__constant__ REAL_TYPE RH;
-__constant__ REAL_TYPE RL;
-__constant__ REAL_TYPE HOLDING_COST;
-
-//// effective transitions
-
-__constant__ REAL_TYPE PROB_HL;
-__constant__ REAL_TYPE PROB_LH_ND;
-__constant__ REAL_TYPE PROB_LH_D;
-
-// Note:
-// 1. H->L is Prob(get liquidity shock)
-// 2. L->H is Prob(meet mkt maker)*(1-(mkt maker barg power))
-
-// debt market
-__constant__ REAL_TYPE REENTERPROB;
-__constant__ REAL_TYPE DEBT_Z;
-__constant__ REAL_TYPE DEBT_M;
-
-// grid dimensions
-__constant__ int GRIDSIZE_Y;
-__constant__ int GRIDSIZE_B;
-
-// grids
-__constant__ REAL_TYPE GRID_Y_ND[MAX_GRIDSIZE_Y];
-__constant__ REAL_TYPE GRID_B[MAX_GRIDSIZE_B];
-
-// interpolation
-__constant__ int GRID_B_REENTER_IDX[MAX_GRIDSIZE_B];
-__constant__ REAL_TYPE GRID_RECOVERY_FRAC[MAX_GRIDSIZE_B];
-
-*/
 
 REAL_TYPE CalcAutarkyOutput(REAL_TYPE yND, REAL_TYPE bdef, REAL_TYPE d_y, REAL_TYPE d_yy, REAL_TYPE d_b, REAL_TYPE d_bb, REAL_TYPE d_yb)
 {
