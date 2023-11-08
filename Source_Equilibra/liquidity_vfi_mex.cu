@@ -10,6 +10,11 @@
 #include <math_constants.h>
 #include "mex.h"
 
+/*
+FORMATS:
+1. VD(y,b), VND(y,b), q(y,b'), CVD(y,b), CVND(y,b')
+*/
+
 // GPU device constants: preferences
 __constant__ REAL_TYPE RRA;
 __constant__ REAL_TYPE BETA;
@@ -103,8 +108,7 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 		CENDupdate = VD;
 		def_prob_update = 1.0;
 		qHupdate = (1 - PROB_HL) * d_qH_D[idx_y * GRIDSIZE_B + idx_b] + PROB_HL * d_qL_D[idx_y * GRIDSIZE_B + idx_b];
-		qLupdate = max(0.0, (1 - PROB_LH_D) * d_qL_D[idx_y * GRIDSIZE_B + idx_b] + PROB_LH_D * d_qH_D[idx_y * GRIDSIZE_B + idx_b]
-			- HOLDING_COST);
+		qLupdate = max(0.0, (1 - PROB_LH_D) * d_qL_D[idx_y * GRIDSIZE_B + idx_b] + PROB_LH_D * d_qH_D[idx_y * GRIDSIZE_B + idx_b] - HOLDING_COST);
 		mdeftresh = GGQ_MUB;
 	}
 	else
@@ -378,11 +382,6 @@ __device__ REAL_TYPE gauss_legendre_CENDupdate(REAL_TYPE m1, REAL_TYPE m2, REAL_
 
 }
 
-/*
-FORMATS:
-1. VD(y,b), VND(y,b), q(y,b'), CVD(y,b), CVND(y,b')
-*/
-
 __global__ void vfi_iterate_policy(int *d_idx_bchoice, REAL_TYPE *d_qH_ND, REAL_TYPE *d_def_prob, REAL_TYPE *d_CVND)
 // policy is for m = ggq_mmean, a value of -1 indicates an empty choice
 {
@@ -470,6 +469,7 @@ ceD_haircut, qH_D, qL_D
 interpolation based on writedown_rate and writedown_reenter:
 ceC_haircut, qH_ND, qL_ND
 */
+// ! Note that to update prices in default, we need to know q^{H}_{ND}(y, R(b)) and q^{L}_{ND}(y, R(b)) for all y and b.
 {
 	int i = blockIdx.x*blockDim.x + threadIdx.x;
 	int idx_b = i % GRIDSIZE_B;
@@ -560,7 +560,7 @@ __global__ void vfi_update2(REAL_TYPE *d_CVD, REAL_TYPE *d_CVDhaircut, REAL_TYPE
 // update taking into account write downs
 {
 	int i = blockIdx.x*blockDim.x + threadIdx.x;
-	if (i < GRIDSIZE_Y*GRIDSIZE_B) // For every (y,b) pair
+	if (i < GRIDSIZE_Y*GRIDSIZE_B) // For every (y,b') pair
 	{	
 		int idx_b = i % GRIDSIZE_B;
 		d_CVD[i] = (1 - REENTERPROB)*d_CVDhaircut[i] + REENTERPROB*d_CVNDhaircut[i];
@@ -637,7 +637,7 @@ void vfi(parms_bsl_mod &p, REAL_TYPE wOldV, REAL_TYPE wOldQ, REAL_TYPE wOldDefPr
 	int NUMTHREADS3 = 128;
 	int NUMBLOCKS3 = (int)ceil((double)(p.gridsize_tfp*p.gridsize_b) / (double)NUMTHREADS3);
 
-	// ! Compute errors:
+	// ! Compute errors and update objects:
 	update_compute_errors <<< NUMBLOCKS3, NUMTHREADS3 >>> (d_CVD, d_CVDnew, wOldV); // CVD
 	update_compute_errors <<< NUMBLOCKS3, NUMTHREADS3 >>> (d_CVND, d_CVNDnew, wOldV); // CVND
 	update_compute_errors <<< NUMBLOCKS3, NUMTHREADS3 >>> (d_defprob, d_defprob_new, wOldDefProb); // def prob
