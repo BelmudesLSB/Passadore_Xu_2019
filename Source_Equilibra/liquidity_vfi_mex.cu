@@ -70,10 +70,8 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 	{
 		// cs0 = y - b*[m + (1 - m)*z] + qCH(y, b')*[b' - (1 - m)*b]
 		// NOTE: we require cs0+mlb to be strictly positive!
-		Ccandidate = GRID_Y_ND[idx_y] - GRID_B[idx_b] * (DEBT_M + (1 - DEBT_M) * DEBT_Z)
-			+ d_qH_ND[idx_y * GRIDSIZE_B + i] * (GRID_B[i] - (1 - DEBT_M) * GRID_B[idx_b]);
-		if (Ccandidate + mnow >= C_LB &&
-			(d_def_prob[idx_y * GRIDSIZE_B + i] <= MAX_DEF_PROB || GRID_B[i] <= (1 - DEBT_M) * GRID_B[idx_b]))
+		Ccandidate = GRID_Y_ND[idx_y] - GRID_B[idx_b] * (DEBT_M + (1 - DEBT_M) * DEBT_Z) + d_qH_ND[idx_y * GRIDSIZE_B + i] * (GRID_B[i] - (1 - DEBT_M) * GRID_B[idx_b]);
+		if (Ccandidate + mnow >= C_LB && (d_def_prob[idx_y * GRIDSIZE_B + i] <= MAX_DEF_PROB || GRID_B[i] <= (1 - DEBT_M) * GRID_B[idx_b]))
 		{
 			Wcandidate = BETA * d_CVND[idx_y * GRIDSIZE_B + i];
 			Vcandidate = U_SCALING * POWERFUN(Ccandidate + mnow, ONE_MINUS_RRA) + Wcandidate; //mnow=GGQ_MLB
@@ -289,7 +287,7 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 				Vcandidate = POWERFUN(ONE_MINUS_RRA * (VD - Wnow), U_SCALING) - Cnow; // def threshold
 				CENDupdate += gauss_legendre_CENDupdate(Vcandidate, mnow, Cnow, Wnow)
 					+ VD * (normcdf(Vcandidate - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD));
-				qHupdate += (normcdf(Vcandidate - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD)) *
+				qHupdate += (normcdf(Vcandidate - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD)) * 
 					((1 - PROB_HL) * d_qH_D[idx_y * GRIDSIZE_B + idx_b] + PROB_HL * d_qL_D[idx_y * GRIDSIZE_B + idx_b])
 					+ (normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(Vcandidate - GGQ_MMEAN, GGQ_MSTD)) *
 					(DEBT_M + (1 - DEBT_M) * DEBT_Z + (1 - DEBT_M) * ((1 - PROB_HL) * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_HL * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev]));
@@ -436,10 +434,7 @@ __global__ void vfi_iterate_policy(int *d_idx_bchoice, REAL_TYPE *d_qH_ND, REAL_
 	}
 }
 
-__global__ void vfi_iterate(REAL_TYPE *d_VD, REAL_TYPE *d_VNDupdate, REAL_TYPE *d_qH_ND_update, REAL_TYPE *d_qL_ND_update, 
-	REAL_TYPE *d_defprob_update, REAL_TYPE *d_defthresh,
-	REAL_TYPE *d_CVD, REAL_TYPE *d_qH_ND, REAL_TYPE *d_qL_ND, 
-	REAL_TYPE *d_qH_D, REAL_TYPE *d_qL_D, REAL_TYPE *d_CVND, REAL_TYPE *d_uD_yb, REAL_TYPE *d_defprob)
+__global__ void vfi_iterate(REAL_TYPE *d_VD, REAL_TYPE *d_VNDupdate, REAL_TYPE *d_qH_ND_update, REAL_TYPE *d_qL_ND_update, REAL_TYPE *d_defprob_update, REAL_TYPE *d_defthresh, REAL_TYPE *d_CVD, REAL_TYPE *d_qH_ND, REAL_TYPE *d_qL_ND, REAL_TYPE *d_qH_D, REAL_TYPE *d_qL_D, REAL_TYPE *d_CVND, REAL_TYPE *d_uD_yb, REAL_TYPE *d_defprob)
 // we don't store the debt policy here
 {
 	int i = blockIdx.x*blockDim.x + threadIdx.x;
@@ -456,6 +451,7 @@ __global__ void vfi_iterate(REAL_TYPE *d_VD, REAL_TYPE *d_VNDupdate, REAL_TYPE *
 		// partition and apply ggq algorithm on each sub-region.
 		ggq_topdown(CENDupdate, qHupdate, qLupdate, defprobupdate, defthresh, idx_y, idx_b, VD,	d_qH_ND, d_qL_ND, d_qH_D, d_qL_D, d_CVND, d_defprob);
 
+		// ! This are the intermediate values that are used to update the policy functions this are not (y,b) they are (y',b) then we will integrate over y'.
 		d_VNDupdate[idx_y*GRIDSIZE_B + idx_b] = CENDupdate;
 		d_qH_ND_update[idx_y*GRIDSIZE_B + idx_b] = qHupdate;
 		d_qL_ND_update[idx_y*GRIDSIZE_B + idx_b] = qLupdate;
@@ -564,14 +560,12 @@ __global__ void vfi_update2(REAL_TYPE *d_CVD, REAL_TYPE *d_CVDhaircut, REAL_TYPE
 // update taking into account write downs
 {
 	int i = blockIdx.x*blockDim.x + threadIdx.x;
-	if (i < GRIDSIZE_Y*GRIDSIZE_B)
-	{
+	if (i < GRIDSIZE_Y*GRIDSIZE_B) // For every (y,b) pair
+	{	
 		int idx_b = i % GRIDSIZE_B;
 		d_CVD[i] = (1 - REENTERPROB)*d_CVDhaircut[i] + REENTERPROB*d_CVNDhaircut[i];
-		d_qH_D[i] = max(0.0,(1 - REENTERPROB)*d_qH_Dhaircut[i] / (1 + RH)
-			+ GRID_RECOVERY_FRAC[idx_b] * REENTERPROB * d_qH_NDhaircut[i]);
-		d_qL_D[i] = max(0.0,(1 - REENTERPROB)*d_qL_Dhaircut[i] / (1 + RL)
-			+ GRID_RECOVERY_FRAC[idx_b] * REENTERPROB * d_qL_NDhaircut[i]);
+		d_qH_D[i] = max(0.0,(1 - REENTERPROB)*d_qH_Dhaircut[i] / (1 + RH) + GRID_RECOVERY_FRAC[idx_b] * REENTERPROB * d_qH_NDhaircut[i]);
+		d_qL_D[i] = max(0.0,(1 - REENTERPROB)*d_qL_Dhaircut[i] / (1 + RL) + GRID_RECOVERY_FRAC[idx_b] * REENTERPROB * d_qL_NDhaircut[i]);
 	}
 }
 
@@ -750,6 +744,8 @@ void parms_bsl_mod::initDeviceConstants()
 	int tempidx;
 	REAL_TYPE tempdiff;
 	REAL_TYPE* grid_recovery_frac = new REAL_TYPE[gridsize_b];
+
+	// ! Why is this here? Note that when we run the solverm recovery_bmax might not be defined in the grid. Therefore we need to perform interpolation. 
 
 	for (int idx_b = 0; idx_b < gridsize_b; idx_b++)
 	{
