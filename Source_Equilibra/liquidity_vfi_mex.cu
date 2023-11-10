@@ -438,8 +438,7 @@ __global__ void vfi_iterate(REAL_TYPE *d_VD, REAL_TYPE *d_VNDupdate, REAL_TYPE *
 	}
 }
 
-__global__ void vfi_interpolate(REAL_TYPE *ceCi, REAL_TYPE *qH_NDi, REAL_TYPE *qL_NDi,
-	REAL_TYPE *ceC, REAL_TYPE *qH_ND, REAL_TYPE *qL_ND)
+__global__ void vfi_interpolate(REAL_TYPE *ceCi, REAL_TYPE *qH_NDi, REAL_TYPE *qL_NDi, REAL_TYPE *ceC, REAL_TYPE *qH_ND, REAL_TYPE *qL_ND)
 /*
 interpolation based on writedown_rate:
 ceD_haircut, qH_D, qL_D
