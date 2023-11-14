@@ -5,13 +5,11 @@ clear all
 p.rra = 2;
 p.beta = 0.9842;
 p.clb = 1e-6;
-
 p.ggq_mstd = 0.004;
 p.ggq_mlb = -3*p.ggq_mstd;
 p.ggq_mub = 3*p.ggq_mstd;
 p.ggq_mmean = 0.5*(p.ggq_mub + p.ggq_mlb);
 p.ggq_mDval = p.ggq_mmean;
-
 p.errtol_bisect = 1e-12;
 p.maxiters_bisect = 1000;
 p.rH = 0.0033;
@@ -37,28 +35,24 @@ TURNOVER_MONTHLY = 1.19/12; % average: emta volume sovereign eurobonds (non-brad
 p.prob_meet_mkt_maker_ND = 0.8647; % = 1 - exp(-4). So average trade is 1 week
 p.prob_meet_mkt_maker_D = 0.8647;
 
-prob_liqshock = TURNOVER_MONTHLY*(p.debt_m+(1-p.debt_m)*p.prob_meet_mkt_maker_ND)/(p.prob_meet_mkt_maker_ND-TURNOVER_MONTHLY*(1-p.debt_m))
+prob_liqshock = TURNOVER_MONTHLY*(p.debt_m+(1-p.debt_m)*p.prob_meet_mkt_maker_ND)/(p.prob_meet_mkt_maker_ND-TURNOVER_MONTHLY*(1-p.debt_m));
 
 if prob_liqshock<=0; error('prob_liqshock<=0.'); end
 
 p.prob_liqshock = prob_liqshock;
-
 uncond_std = p.sigma_tfp/sqrt(1 - p.rho_tfp^2);
 width_numstd = 3;
 width_numstd_conv_chk = 2.5;
-
 p.tfp_lb = -width_numstd*uncond_std;
 p.tfp_ub = width_numstd*uncond_std;
 p.conv_chk_tfp_lb = -width_numstd_conv_chk*uncond_std;
 p.conv_chk_tfp_ub = width_numstd_conv_chk*uncond_std;
 p.conv_chk_b_ub = 5.5;
-
 p.d_y = -0.2530;
 p.d_yy = 0.3241;
 p.d_b = 0;
 p.d_bb = 0;
 p.d_yb = 0;
-
 p.maxiters = 8000;
 p.errtolV = 1e-6;
 p.errtolQ = 1e-5;
@@ -86,6 +80,7 @@ holding_cost_guess = 0.005503259285985;
 
 %% run fitting procedure
 
+% Specs of the GPU:
 poolsize = gpuDeviceCount;
 pool = parpool(poolsize, 'IdleTimeout', 240);
 
@@ -108,7 +103,6 @@ tic
 toc
 
 delete(pool)
-
 clear Us_z Us_m Us_reenter
 
 %% save

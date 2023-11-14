@@ -65,5 +65,5 @@ DisplayInterval = 100; % <1: don't display
 % DisplayInterval = -1; % <1: don't display
 
 tic
-p_out = mexSolveModelGivenParms(p, useDevice, DisplayInterval)
+p_out = mexSolveModelGivenParms(p, useDevice, DisplayInterval);
 toc
