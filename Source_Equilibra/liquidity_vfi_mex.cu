@@ -58,7 +58,27 @@ __constant__ REAL_TYPE GRID_RECOVERY_FRAC[MAX_GRIDSIZE_B];
 
 __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYPE& qLupdate, REAL_TYPE& def_prob_update, REAL_TYPE& mdeftresh,
 	int idx_y, int idx_b, REAL_TYPE& VD, REAL_TYPE* d_qH_ND, REAL_TYPE* d_qL_ND, REAL_TYPE* d_qH_D, REAL_TYPE* d_qL_D, REAL_TYPE* d_CVND, REAL_TYPE* d_def_prob)
-{		
+{	
+	//! Arguments:
+	/*
+	Updates:
+	CENDupdate: CVND^{n+1,0}(y', b') in the overleaf file.
+	qHupdate: qH_ND^{n+1,0}(y', b') in the overleaf file.
+	qLupdate: qL_ND^{n+1,0}(y', b') in the overleaf file.
+	def_prob_update: defprob^{n+1,0}(y', b') in the overleaf file.
+	mdefthresh: mdefthresh(y', b') threshold for default.
+	idx_y: index for y'.
+	idx_b: index for b'.
+	Previous values:
+	VD: VD^{n+1, 1}(y', b') in the overleaf file.
+	d_qH_ND: qH_ND^{n}(y, b) in the overleaf file.
+	d_qL_ND: qL_ND^{n}(y, b) in the overleaf file.
+	d_qH_D: qH_D^{n}(y, b) in the overleaf file.
+	d_qL_D: qL_D^{n}(y, b) in the overleaf file.
+	d_CVND: CVND^{n}(y, b) in the overleaf file.
+	d_def_prob: defprob^{n}(y, b) in the overleaf file.
+	*/	
+
 	// initialize at mub
 	REAL_TYPE Vnow = CUDART_NEG_INF;
 	REAL_TYPE Cnow, Wnow;
@@ -130,18 +150,19 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 			mdeftresh = CUDART_NEG_INF; // infinite number will be used as a flag
 		}
 
-		while (bContinue)
+		while (bContinue) // ! Main algorithm:
 		{
 
 			M1 = max(GGQ_MLB, C_LB - Cnow); //! Lowest possible value of m to consider given current x_now.
 			Vnow_M1 = U_SCALING * POWERFUN(Cnow + M1, ONE_MINUS_RRA) + Wnow; // ! Lowest possible value given the policy.
-			mnext = M1;
-			Cnext = Cnow;
-			bContinue = false; // ! If there is no policy we still need to check whether default is preffered.
+			mnext = M1;	// ! Candidate to replace the current threshold, which might be set to low.
+			Cnext = Cnow;	// ! Candidate to replace current consumption.
+			bContinue = false; // ! If there is no policy we still need to check whether default is prefered.
 
 			// go through choices
-			for (i = 0; i < GRIDSIZE_B; i++)
-			{	// ! it does not matter if the choice of debt is only [m_2,m_1] we need to guarantee that d_def_prob[idx_y * GRIDSIZE_B + i] <= MAX_DEF_PROB.
+			// ! past values are stored in (Cnow, Vnow_M1, mnow)
+			for (i = 0; i < GRIDSIZE_B; i++) // ! Go over all the possible choices.
+			{	
 				if (i != ichoice_prev && (d_def_prob[idx_y * GRIDSIZE_B + i] <= MAX_DEF_PROB || GRID_B[i] <= (1 - DEBT_M) * GRID_B[idx_b]))
 				{
 					Ccandidate = GRID_Y_ND[idx_y] - GRID_B[idx_b] * (DEBT_M + (1 - DEBT_M) * DEBT_Z) + d_qH_ND[idx_y * GRIDSIZE_B + i] * (GRID_B[i] - (1 - DEBT_M) * GRID_B[idx_b]);
@@ -149,11 +170,11 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 					{
 						Wcandidate = BETA * d_CVND[idx_y * GRIDSIZE_B + i];
 						Vcandidate = U_SCALING * POWERFUN(Ccandidate + M1, ONE_MINUS_RRA) + Wcandidate;
-						if (Vcandidate > Vnow_M1) // ! check at the lowest. 
+						if (Vcandidate > Vnow_M1) // ! check at the lowest possible value to replace. What if it is indifferent?
 						{
 							// ! Go over all the possible options, checking until we find the maximum m such that indifference.
 							// find bisection point, save a register-- store in Vcandidate
-							Vcandidate = bisect_zero(M1, mnow, Cnow, Ccandidate, (Wnow - Wcandidate) / U_SCALING);
+							Vcandidate = bisect_zero(M1, mnow, Cnow, Ccandidate, (Wnow - Wcandidate) / U_SCALING); 
 							if (Vcandidate > mnext)
 							{
 								// NOTE: if the difference is too small, the root from the bisection may be equal to MUB. This will produce an error.
@@ -176,6 +197,14 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 				}
 			} // note, it's possible for this loop to have no feasible choice (e.g. q=0)
 			
+			// ! 3 possible cases:
+			//     ! 1. VD >= V_highest, always default.
+			//     ! 2. VD =< V_lowest, always repay.
+			//         ! 2.1. V_lowest, has the same policy until mlb.
+			//         ! 2.2. V_lowest, has the same policy until mnext.
+			// 	       ! 2.3. V_lowest, has the same policy until some m>mlb. The bound here will be given by consumption.
+			//     ! 3. Vnow_M1 < VD < Vnow, default if m < mnext, otherwise repay.
+
 			if (VD >= U_SCALING * POWERFUN(Cnow + mnow, ONE_MINUS_RRA) + Wnow) // ! always default in region
 			{
 				
@@ -184,10 +213,9 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 				qLupdate += (normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD)) * ((1 - PROB_LH_D) * d_qL_D[idx_y * GRIDSIZE_B + idx_b] + PROB_LH_D * d_qH_D[idx_y * GRIDSIZE_B + idx_b]);
 				bContinue = false;
 			}
-			else if (VD <= U_SCALING * POWERFUN(Cnow + mnext, ONE_MINUS_RRA) + Wnow) // ! It might be the case that mnext is M1.
+			else if (VD <= U_SCALING * POWERFUN(Cnow + mnext, ONE_MINUS_RRA) + Wnow) // ! It might be the case that mnext is still M1 but then continue will be false.
 			{
-				// ! never default in region until policy switches. (mnext is not M1)
-				if (bContinue)
+				if (bContinue) // ! 2.1 (mnext is not M1), there was something to switch policies, we will need more loop.
 				{
 					CENDupdate += gauss_legendre_CENDupdate(mnext, mnow, Cnow, Wnow);
 					qHupdate += (normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(mnext - GGQ_MMEAN, GGQ_MSTD)) *	(DEBT_M + (1 - DEBT_M) * DEBT_Z	+ (1 - DEBT_M) * ((1 - PROB_HL) * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_HL * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev]));
@@ -198,9 +226,9 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 					Cnow = Cnext;
 					Wnow = Wnext;
 				}
-				else // ! (mnext is M1)
+				else // ! (mnext is M1), we might only need more loops if mnow is not GGQ_MLB.
 				{
-					if (C_LB - Cnow > GGQ_MLB)
+					if (C_LB - Cnow > GGQ_MLB) // ! (Cnow, Wnow) does not apply until MLB, then we need to make the code robust. c_{lb} > c_{now} + GGQ_MLB
 					{
 						// (Cnow,Wnow) applies until M1=C_LB-Cnow>MLB
 						CENDupdate += gauss_legendre_CENDupdate(M1, mnow, Cnow, Wnow);
@@ -210,15 +238,15 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 						bContinue = false;
 						mnow = M1;
 						Vnow = Vnow_M1;
+
 						for (i = 0; i < GRIDSIZE_B; i++)
 						{
 							if (i != ichoice &&
 								(d_def_prob[idx_y * GRIDSIZE_B + i] <= MAX_DEF_PROB || GRID_B[i] <= (1 - DEBT_M) * GRID_B[idx_b]))
 							{
-								Ccandidate = GRID_Y_ND[idx_y] - GRID_B[idx_b] * (DEBT_M + (1 - DEBT_M) * DEBT_Z)
-									+ d_qH_ND[idx_y * GRIDSIZE_B + i] * (GRID_B[i] - (1 - DEBT_M) * GRID_B[idx_b]);
-								if (Ccandidate + M1 > C_LB)
-								{
+								Ccandidate = GRID_Y_ND[idx_y] - GRID_B[idx_b] * (DEBT_M + (1 - DEBT_M) * DEBT_Z) + d_qH_ND[idx_y * GRIDSIZE_B + i] * (GRID_B[i] - (1 - DEBT_M) * GRID_B[idx_b]);
+								if (Ccandidate + M1 > C_LB) // ! Consumption here is by construction equal to the lower bound.
+								{	
 									Wcandidate = BETA * d_CVND[idx_y * GRIDSIZE_B + i];
 									Vcandidate = U_SCALING * POWERFUN(Ccandidate + M1, ONE_MINUS_RRA) + Wcandidate;
 									if (Vcandidate > Vnow)
@@ -245,7 +273,7 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 								}
 							}
 						}
-						if (!bContinue)
+						if (!bContinue) 
 						{
 							// all choices are not feasible, VD applies for m<=M1
 							CENDupdate += VD * (normcdf(M1 - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD));
@@ -254,9 +282,9 @@ __device__ void ggq_topdown(REAL_TYPE& CENDupdate, REAL_TYPE& qHupdate, REAL_TYP
 							mdeftresh = M1;
 						}
 					}
-					else
+					else //! (Cnow, Wnow) applies until MLB
 					{
-						// (Cnow,Wnow) applies until MLB
+						
 						CENDupdate += gauss_legendre_CENDupdate(GGQ_MLB, mnow, Cnow, Wnow);
 						qHupdate += (normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD)) * (DEBT_M + (1 - DEBT_M) * DEBT_Z + (1 - DEBT_M) * ((1 - PROB_HL) * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_HL * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev]));
 						qLupdate += (normcdf(mnow - GGQ_MMEAN, GGQ_MSTD) - normcdf(GGQ_MLB - GGQ_MMEAN, GGQ_MSTD)) * (DEBT_M + (1 - DEBT_M) * DEBT_Z + (1 - DEBT_M) * ((1 - PROB_LH_ND) * d_qL_ND[idx_y * GRIDSIZE_B + ichoice_prev] + PROB_LH_ND * d_qH_ND[idx_y * GRIDSIZE_B + ichoice_prev]));
@@ -402,9 +430,7 @@ __global__ void vfi_iterate_policy(int *d_idx_bchoice, REAL_TYPE *d_qH_ND, REAL_
 				}
 			}
 		}
-
 		d_idx_bchoice[idx_y * GRIDSIZE_B + idx_b] = ichoice;
-
 	}
 }
 
